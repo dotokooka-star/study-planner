@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>공부 플래너 beta 1.2</title>
+<title>공부 플래너 beta 1.3</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:44px}
@@ -71,6 +71,15 @@ textarea{width:100%;background:var(--chip);border:1px solid var(--bd);border-rad
 .pre{display:flex;gap:4px;justify-content:center;margin-top:8px}
 .pre button{padding:2px 8px;font-size:13px}.pre input{width:64px;padding:2px 6px}
 .task[draggable=true]{cursor:grab}.task .pl{padding:2px 5px;margin-left:2px}
+#space{position:fixed;inset:0;z-index:60;background:#05060f;display:none}
+#space canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.spui{position:absolute;left:0;right:0;bottom:0;padding:0 16px 30px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+#sp_sub{color:#8791c2;font-size:14px;letter-spacing:2px}
+#sp_t{color:#e4e9fb;font-size:clamp(40px,7vw,68px);font-weight:300;letter-spacing:6px;line-height:1.1}
+#sp_q{color:#aab4dc;font-size:clamp(15px,2vw,19px);max-width:min(740px,88vw);min-height:28px;transition:opacity .35s;margin-top:4px}
+.spb{display:flex;gap:22px;margin-top:12px;flex-wrap:wrap;justify-content:center}
+.spb button{background:transparent;border:0;color:#8791c2;letter-spacing:2px;font-size:13px;padding:6px 4px}
+.spb button:hover{color:#dbe1fa}.spb i.ti{font-size:15px}
 dialog{background:var(--panel);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:16px;width:min(360px,92vw)}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
@@ -82,7 +91,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 </head>
 <body>
 <div class="top">
-  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.2</span>
+  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.3</span>
   <span class="sp"></span>
   <button class="ic" id="undo" title="되돌리기 (Ctrl+Z)"><i class="ti ti-arrow-back-up"></i></button>
   <button class="ic" id="redo" title="다시 실행 (Ctrl+Y)"><i class="ti ti-arrow-forward-up"></i></button>
@@ -101,6 +110,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
       <div style="display:flex;gap:6px;justify-content:center">
         <button class="pri" id="tgo"><i class="ti ti-player-play"></i><span>시작</span></button>
         <button class="ic" id="treset" title="처음으로"><i class="ti ti-refresh"></i></button>
+        <button class="ic" id="topen" title="공부 화면 열기"><i class="ti ti-stars"></i></button>
       </div>
       <div class="mu sm" style="margin-top:6px" id="tinfo"></div>
     </div>
@@ -166,6 +176,8 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
   <label>집중 시간(분)</label><input id="s_focus" type="number" min="1" max="120">
   <label>휴식 시간(분)</label><input id="s_rest" type="number" min="1" max="60">
   <label>과목 (쉼표로 구분)</label><input id="s_subs">
+  <label>공부 화면 테마</label><select id="s_theme"></select>
+  <label>공부 화면 문구</label><select id="s_quote"></select>
   <label>동기화</label>
   <div id="s_acct" class="sm mu"></div>
   <div style="display:flex;gap:6px;margin-top:6px"><button id="s_login"><i class="ti ti-brand-google"></i>구글로 로그인</button><button id="s_logout">로그아웃</button></div>
@@ -174,10 +186,20 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
   <input type="file" id="s_file" accept=".json" style="display:none">
   <div class="row"><button id="s_cancel">닫기</button><button class="pri" id="s_ok">저장</button></div>
 </dialog>
+<div id="space">
+  <canvas id="sc"></canvas>
+  <div class="spui">
+    <div id="sp_sub"></div>
+    <div id="sp_t">25:00</div>
+    <div id="sp_q"></div>
+    <div class="spb"><button id="sp_pause"><span>일시정지</span></button><button id="sp_next"><i class="ti ti-sparkles"></i>다른 말</button><button id="sp_end">끝내기</button><button id="sp_close">닫기</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { firebaseConfig } from './firebase-config.js';
+import { initSpace, SCENES, QUOTE_SETS } from './space.js';
 const KEY='studyplanner.state.v1', LOGKEY='studyplanner.log.v1', VKEY='studyplanner.view.v1';
 const $=id=>document.getElementById(id);
 
@@ -192,7 +214,7 @@ const pad=n=>String(n).padStart(2,'0');
 const ds=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
 const today=()=>ds(new Date());
-function fresh(){return{v:1,updatedAt:0,tasks:[],exams:[],sessions:[],subjects:['수학','영어','국어'],focus:25,rest:5}}
+function fresh(){return{v:1,updatedAt:0,tasks:[],exams:[],sessions:[],subjects:['수학','영어','국어'],focus:25,rest:5,quoteMode:'good',spaceTheme:'cosmos'}}
 let S=fresh();
 try{const r=localStorage.getItem(KEY);if(r){S={...fresh(),...JSON.parse(r)};log('불러옴 tasks='+S.tasks.length)}}catch(e){log('저장본 깨짐, 기본값으로 시작: '+e.message)}
 let undoS=[],redoS=[];
@@ -408,6 +430,16 @@ const swElapsed=()=>tm.base+(tm.running?(Date.now()-tm.startAt)/1000:0);
 const leftNow=()=>tm.running?Math.max(0,Math.round((tm.end-Date.now())/1000)):tm.left;
 const curTask=()=>S.tasks.find(x=>x.id===tm.taskId);
 const curSub=()=>{const t=curTask();return t?(t.subject||''):$('tsub').value};
+const totalSec=()=>tm.mode==='stopwatch'?3600:(tm.phase==='rest'?S.rest*60:tmin[tm.mode]*60);
+function tgoLabel(){
+  if(tm.running)return '일시정지';
+  if(tm.phase==='rest')return '휴식 시작';
+  const started=tm.mode==='stopwatch'?tm.base>0:tm.left<totalSec();
+  return started?'계속하기':'공부 시작';
+}
+const space=initSpace({$,getS:()=>S,tm,tmin,leftNow,swElapsed,curTask,log});
+Object.entries(SCENES).forEach(([id,d])=>{const o=document.createElement('option');o.value=id;o.textContent=d.name;$('s_theme').appendChild(o)});
+QUOTE_SETS.forEach(([id,name])=>{const o=document.createElement('option');o.value=id;o.textContent=name;$('s_quote').appendChild(o)});
 function fillTasks(){
   const sel=$('ttask');
   if(tm.taskId&&!curTask())tm.taskId='';
@@ -431,7 +463,9 @@ function tickTimer(){
   $('tpre').style.display=(sw||tm.phase==='rest')?'none':'flex';
   $('tsub').style.display=tm.taskId?'none':'';
   if(document.activeElement!==$('tmin'))$('tmin').value=sw?'':tmin[tm.mode];
-  $('tgo').innerHTML=tm.running?'<i class="ti ti-player-pause"></i><span>일시정지</span>':'<i class="ti ti-player-play"></i><span>시작</span>';
+  const lb=tgoLabel();
+  $('tgo').innerHTML=(tm.running?'<i class="ti ti-player-pause"></i>':'<i class="ti ti-player-play"></i>')+'<span>'+lb+'</span>';
+  space.update(lb);
   const n=S.sessions.filter(s=>s.date===today()).length;
   $('tinfo').textContent=(sw?'스톱워치 · 초기화하면 1분 이상은 기록돼':tm.mode==='timer'?'타이머 '+tmin.timer+'분':(tm.phase==='rest'?'휴식 시간':tmin.focus+'분 집중 · '+S.rest+'분 휴식'))+' · 오늘 '+n+'회 기록';
   if(tm.running&&!sw&&sec<=0)finishTimer();
@@ -442,7 +476,7 @@ function finishTimer(){
     if(tm.phase==='focus'){logSession(tmin.focus);tm.phase='rest';tm.left=S.rest*60;toast('집중 끝! 쉬어가자')}
     else{tm.phase='focus';tm.left=tmin.focus*60;toast('휴식 끝')}
   }else{logSession(tmin.timer);tm.left=tmin.timer*60;toast('타이머 끝')}
-  tickTimer();
+  space.done();tickTimer();
 }
 function setMode(m){
   if(tm.running){toast('먼저 멈춰줘');return}
@@ -468,7 +502,7 @@ function startForTask(t){
   if(tm.mode==='timer'&&t.min)tmin.timer=t.min;
   if(tm.mode!=='stopwatch')tm.left=tmin[tm.mode]*60;
   if(tm.mode==='stopwatch')tm.startAt=Date.now();else tm.end=Date.now()+tm.left*1000;
-  tm.running=true;fillTasks();log('타이머 시작 '+t.title);tickTimer();
+  tm.running=true;fillTasks();log('타이머 시작 '+t.title);tickTimer();space.open(tgoLabel());
 }
 $('tgo').onclick=()=>{
   if(tm.mode==='stopwatch'){
@@ -476,6 +510,14 @@ $('tgo').onclick=()=>{
   }else if(tm.running){tm.left=leftNow();tm.running=false}
   else{tm.sub=curSub();tm.end=Date.now()+tm.left*1000;tm.running=true}
   tickTimer();
+  if(tm.running)space.open(tgoLabel());
+};
+$('topen').onclick=()=>space.open(tgoLabel());
+$('sp_end').onclick=()=>{
+  const sw=tm.mode==='stopwatch',el=sw?swElapsed():Math.max(0,totalSec()-leftNow()),min=Math.floor(el/60);
+  if(sw){tm.running=false;tm.base=0;if(min>=1){const m=Math.round(el/60);logSession(m);toast(m+'분 기록했어')}}
+  else{tm.running=false;if(tm.phase==='focus'&&min>=1&&confirm(min+'분 공부한 걸 기록할까?'))logSession(min);tm.phase='focus';tm.left=tmin[tm.mode]*60}
+  space.close();tickTimer();
 };
 $('treset').onclick=()=>{
   if(tm.mode==='stopwatch'){
@@ -538,12 +580,12 @@ $('ai_add').onclick=()=>{
 };
 
 /* ---------- 설정 / 백업 ---------- */
-$('gear').onclick=()=>{$('s_focus').value=S.focus;$('s_rest').value=S.rest;$('s_subs').value=S.subjects.join(', ');updateAcct();$('dset').showModal()};
+$('gear').onclick=()=>{$('s_theme').value=S.spaceTheme||'cosmos';$('s_quote').value=S.quoteMode||'good';$('s_focus').value=S.focus;$('s_rest').value=S.rest;$('s_subs').value=S.subjects.join(', ');updateAcct();$('dset').showModal()};
 $('s_cancel').onclick=()=>$('dset').close();
 $('s_ok').onclick=()=>{
   const f=Math.max(1,parseInt($('s_focus').value)||25),r=Math.max(1,parseInt($('s_rest').value)||5);
   const subs=$('s_subs').value.split(',').map(x=>x.trim()).filter(Boolean);
-  commit(()=>{S.focus=f;S.rest=r;S.subjects=subs.length?subs:S.subjects});
+  commit(()=>{S.focus=f;S.rest=r;S.subjects=subs.length?subs:S.subjects;S.spaceTheme=$('s_theme').value;S.quoteMode=$('s_quote').value});
   if(!tm.running){tmin.focus=S.focus;if(tm.mode==='focus')tm.left=(tm.phase==='rest'?S.rest:S.focus)*60}$('dset').close();tickTimer();
 };
 $('s_exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='study-planner-backup.json';a.click();log('백업 저장')};
@@ -586,7 +628,7 @@ async function initFirebase(){
     });
   }catch(e){setSync('동기화 오류','alert-triangle');log('파이어베이스 시작 실패 '+e.message)}
 }
-render();initFirebase();log('시작 beta 1.2');
+render();initFirebase();log('시작 beta 1.3');
 </script>
 </body>
 </html>
