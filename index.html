@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>공부 플래너 beta 1.5</title>
+<title>공부 플래너 beta 1.6</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:44px}
@@ -81,6 +81,7 @@ textarea{width:100%;background:var(--chip);border:1px solid var(--bd);border-rad
 .spb button{background:transparent;border:0;color:#8791c2;letter-spacing:2px;font-size:13px;padding:6px 4px}
 .spb button:hover{color:#dbe1fa}.spb i.ti{font-size:15px}
 dialog{background:var(--panel);color:var(--tx);border:1px solid var(--bd);border-radius:12px;padding:16px;width:min(360px,92vw)}
+dialog{max-height:92vh;overflow-y:auto}
 dialog::backdrop{background:rgba(0,0,0,.6)}
 dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 .row{display:flex;gap:8px;margin-top:14px;justify-content:flex-end}
@@ -92,7 +93,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 </head>
 <body>
 <div class="top">
-  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.5</span>
+  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.6</span>
   <span class="sp"></span>
   <button class="ic" id="undo" title="되돌리기 (Ctrl+Z)"><i class="ti ti-arrow-back-up"></i></button>
   <button class="ic" id="redo" title="다시 실행 (Ctrl+Y)"><i class="ti ti-arrow-forward-up"></i></button>
@@ -112,7 +113,6 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
         <button class="pri" id="tgo"><i class="ti ti-player-play"></i><span>시작</span></button>
         <button class="ic" id="treset" title="처음으로"><i class="ti ti-refresh"></i></button>
         <button class="ic" id="tset" title="공부 화면 설정 (테마·문구)"><i class="ti ti-adjustments-horizontal"></i></button>
-        <button class="ic" id="topen" title="공부 화면 열기" style="display:none"><i class="ti ti-stars"></i></button>
       </div>
       <div class="mu sm" style="margin-top:6px" id="tinfo"></div>
     </div>
@@ -180,6 +180,10 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
   <label>과목 (쉼표로 구분)</label><input id="s_subs">
   <label>공부 화면 테마</label><select id="s_theme"></select>
   <label>공부 화면 문구</label><select id="s_quote"></select>
+  <label>공부 소리 (공부 중일 때만 재생)</label><select id="s_sound"><option value="1">켜기</option><option value="0">끄기</option></select>
+  <label>소리 크기</label><input id="s_vol" type="range" min="0" max="100" step="5" style="padding:0">
+  <label>8D 효과 (이어폰용)</label><select id="s_8d"><option value="0">끄기</option><option value="1">켜기</option></select>
+  <label>8D 도는 속도</label><input id="s_8dspd" type="range" min="40" max="200" step="10" style="padding:0">
   <label>동기화</label>
   <div id="s_acct" class="sm mu"></div>
   <div style="display:flex;gap:6px;margin-top:6px"><button id="s_login"><i class="ti ti-brand-google"></i>구글로 로그인</button><button id="s_logout">로그아웃</button></div>
@@ -194,14 +198,15 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
     <div id="sp_sub"></div>
     <div id="sp_t">25:00</div>
     <div id="sp_q"></div>
-    <div class="spb"><button id="sp_pause"><span>일시정지</span></button><button id="sp_next"><i class="ti ti-sparkles"></i>다른 말</button><button id="sp_end">끝내기</button><button id="sp_close">닫기</button></div>
+    <div class="spb"><button id="sp_pause"><span>일시정지</span></button><button id="sp_next"><i class="ti ti-sparkles"></i>다른 말</button><button id="sp_snd"><i class="ti ti-music"></i><span>소리 켜짐</span></button><button id="sp_8d"><i class="ti ti-headphones"></i><span>8D 꺼짐</span></button><button id="sp_end">끝내기</button><button id="sp_close">닫기</button></div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script type="module">
 import { firebaseConfig } from './firebase-config.js';
-import { initSpace, SCENES, QUOTE_SETS } from './space.js?v=15';
+import { initSpace, SCENES, QUOTE_SETS } from './space.js?v=16';
+import { createMusic } from './music.js?v=16';
 const KEY='studyplanner.state.v1', LOGKEY='studyplanner.log.v1', VKEY='studyplanner.view.v1';
 const $=id=>document.getElementById(id);
 
@@ -216,7 +221,7 @@ const pad=n=>String(n).padStart(2,'0');
 const ds=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const pd=s=>{const[a,b,c]=s.split('-').map(Number);return new Date(a,b-1,c)};
 const today=()=>ds(new Date());
-function fresh(){return{v:1,updatedAt:0,tasks:[],exams:[],sessions:[],subjects:['수학','영어','국어'],focus:25,rest:5,quoteMode:'good',spaceTheme:'cosmos'}}
+function fresh(){return{v:1,updatedAt:0,tasks:[],exams:[],sessions:[],subjects:['수학','영어','국어'],focus:25,rest:5,quoteMode:'good',spaceTheme:'cosmos',sound:true,soundVol:50,sound8d:false,sound8dSpd:80}}
 let S=fresh();
 try{const r=localStorage.getItem(KEY);if(r){S={...fresh(),...JSON.parse(r)};log('불러옴 tasks='+S.tasks.length)}}catch(e){log('저장본 깨짐, 기본값으로 시작: '+e.message)}
 let undoS=[],redoS=[];
@@ -440,6 +445,12 @@ function tgoLabel(){
   return started?'계속하기':'공부 시작';
 }
 const space=initSpace({$,getS:()=>S,tm,tmin,leftNow,swElapsed,curTask,log});
+const music=createMusic({getS:()=>S,log});
+function soundUI(){
+  $('sp_snd').lastChild.textContent=S.sound!==false?'소리 켜짐':'소리 꺼짐';
+  $('sp_8d').lastChild.textContent=S.sound8d?'8D 켜짐':'8D 꺼짐';
+  $('sp_8d').style.display=S.sound!==false?'':'none';
+}
 Object.entries(SCENES).forEach(([id,d])=>{const o=document.createElement('option');o.value=id;o.textContent=d.name;$('s_theme').appendChild(o)});
 QUOTE_SETS.forEach(([id,name])=>{const o=document.createElement('option');o.value=id;o.textContent=name;$('s_quote').appendChild(o)});
 function fillTasks(){
@@ -468,9 +479,11 @@ function tickTimer(){
   const lb=tgoLabel();
   $('tgo').innerHTML=(tm.running?'<i class="ti ti-player-pause"></i>':'<i class="ti ti-player-play"></i>')+'<span>'+lb+'</span>';
   space.update(lb);
-  $('topen').style.display=tm.running?'':'none';
+  soundUI();
+  music.sync(tm.running&&tm.phase==='focus');
+  $('time').style.cursor=tm.running?'pointer':'';$('time').title=tm.running?'눌러서 공부 화면 열기':'';
   const n=S.sessions.filter(s=>s.date===today()).length;
-  $('tinfo').textContent=(sw?'스톱워치 · 초기화하면 1분 이상은 기록돼':tm.mode==='timer'?'타이머 '+tmin.timer+'분':(tm.phase==='rest'?'휴식 시간':tmin.focus+'분 집중 · '+S.rest+'분 휴식'))+' · 오늘 '+n+'회 기록';
+  $('tinfo').textContent=(tm.running&&!space.isOpen()?'숫자를 누르면 공부 화면이 열려 · ':'')+(sw?'스톱워치 · 초기화하면 1분 이상은 기록돼':tm.mode==='timer'?'타이머 '+tmin.timer+'분':(tm.phase==='rest'?'휴식 시간':tmin.focus+'분 집중 · '+S.rest+'분 휴식'))+' · 오늘 '+n+'회 기록';
   if(tm.running&&!sw&&sec<=0)finishTimer();
 }
 function finishTimer(){
@@ -505,9 +518,10 @@ function startForTask(t){
   if(tm.mode==='timer'&&t.min)tmin.timer=t.min;
   if(tm.mode!=='stopwatch')tm.left=tmin[tm.mode]*60;
   if(tm.mode==='stopwatch')tm.startAt=Date.now();else tm.end=Date.now()+tm.left*1000;
-  tm.running=true;fillTasks();log('타이머 시작 '+t.title);tickTimer();space.open(tgoLabel());
+  music.prime();tm.running=true;fillTasks();log('타이머 시작 '+t.title);tickTimer();space.open(tgoLabel());
 }
 $('tgo').onclick=()=>{
+  music.prime();
   if(tm.mode==='stopwatch'){
     if(tm.running){tm.base=swElapsed();tm.running=false}else{tm.sub=curSub();tm.startAt=Date.now();tm.running=true}
   }else if(tm.running){tm.left=leftNow();tm.running=false}
@@ -515,7 +529,10 @@ $('tgo').onclick=()=>{
   tickTimer();
   if(tm.running)space.open(tgoLabel());
 };
-$('topen').onclick=()=>space.open(tgoLabel());
+$('time').onclick=()=>{if(tm.running)space.open(tgoLabel())};
+function setSound(patch){Object.assign(S,patch);save();music.prime();music.apply();tickTimer()}
+$('sp_snd').onclick=()=>setSound({sound:S.sound===false});
+$('sp_8d').onclick=()=>setSound({sound8d:!S.sound8d});
 $('tset').onclick=()=>$('gear').click();
 $('sp_end').onclick=()=>{
   const sw=tm.mode==='stopwatch',el=sw?swElapsed():Math.max(0,totalSec()-leftNow()),min=Math.floor(el/60);
@@ -584,12 +601,13 @@ $('ai_add').onclick=()=>{
 };
 
 /* ---------- 설정 / 백업 ---------- */
-$('gear').onclick=()=>{$('s_theme').value=S.spaceTheme||'cosmos';$('s_quote').value=S.quoteMode||'good';$('s_focus').value=S.focus;$('s_rest').value=S.rest;$('s_subs').value=S.subjects.join(', ');updateAcct();$('dset').showModal()};
+$('gear').onclick=()=>{$('s_sound').value=S.sound===false?'0':'1';$('s_vol').value=S.soundVol==null?50:S.soundVol;$('s_8d').value=S.sound8d?'1':'0';$('s_8dspd').value=S.sound8dSpd||80;$('s_theme').value=S.spaceTheme||'cosmos';$('s_quote').value=S.quoteMode||'good';$('s_focus').value=S.focus;$('s_rest').value=S.rest;$('s_subs').value=S.subjects.join(', ');updateAcct();$('dset').showModal()};
 $('s_cancel').onclick=()=>$('dset').close();
 $('s_ok').onclick=()=>{
   const f=Math.max(1,parseInt($('s_focus').value)||25),r=Math.max(1,parseInt($('s_rest').value)||5);
   const subs=$('s_subs').value.split(',').map(x=>x.trim()).filter(Boolean);
-  commit(()=>{S.focus=f;S.rest=r;S.subjects=subs.length?subs:S.subjects;S.spaceTheme=$('s_theme').value;S.quoteMode=$('s_quote').value});
+  commit(()=>{S.focus=f;S.rest=r;S.subjects=subs.length?subs:S.subjects;S.spaceTheme=$('s_theme').value;S.quoteMode=$('s_quote').value;S.sound=$('s_sound').value==='1';S.soundVol=parseInt($('s_vol').value)||0;S.sound8d=$('s_8d').value==='1';S.sound8dSpd=parseInt($('s_8dspd').value)||80});
+  music.prime();music.apply();
   if(!tm.running){tmin.focus=S.focus;if(tm.mode==='focus')tm.left=(tm.phase==='rest'?S.rest:S.focus)*60}$('dset').close();tickTimer();
 };
 $('s_exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='study-planner-backup.json';a.click();log('백업 저장')};
@@ -632,7 +650,7 @@ async function initFirebase(){
     });
   }catch(e){setSync('동기화 오류','alert-triangle');log('파이어베이스 시작 실패 '+e.message)}
 }
-render();initFirebase();log('시작 beta 1.5');
+render();initFirebase();log('시작 beta 1.6');
 </script>
 </body>
 </html>
