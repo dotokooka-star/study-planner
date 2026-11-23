@@ -19,7 +19,42 @@ export function createMusic(api){
     }
     return true;
   }
-  function prime(){if(ensureCtx()&&ac.state==='suspended')ac.resume().catch(e=>log('오디오 재개 실패 '+e.message))}
+  // 아이폰: 무음 스위치가 켜져 있어도 소리가 나도록 '재생 모드'로 바꾸고, 소리 없는 오디오를 계속 틀어 둔다.
+  let silent=null;
+  const isIOS=()=>/iPad|iPhone|iPod/.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  function unlockIOS(){
+    try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}
+    if(!isIOS())return;
+    try{
+      if(!silent){
+        const sr=8000,n=sr/2,buf=new ArrayBuffer(44+n),v=new DataView(buf);
+        const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+        w(0,'RIFF');v.setUint32(4,36+n,true);w(8,'WAVE');w(12,'fmt ');v.setUint32(16,16,true);v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr,true);v.setUint16(32,1,true);v.setUint16(34,8,true);w(36,'data');v.setUint32(40,n,true);
+        for(let i=0;i<n;i++)v.setUint8(44+i,128);
+        silent=new Audio(URL.createObjectURL(new Blob([buf],{type:'audio/wav'})));silent.loop=true;silent.setAttribute('playsinline','');
+      }
+      silent.play().catch(e=>log('무음 오디오 재생 실패 '+e.message));
+    }catch(e){log('아이폰 소리 잠금 해제 실패 '+e.message)}
+  }
+  function prime(){
+    if(!ensureCtx())return;
+    if(ac.state==='suspended')ac.resume().catch(e=>log('오디오 재개 실패 '+e.message));
+    unlockIOS();
+  }
+  // 터치할 때마다 브라우저가 막아둔 소리를 풀어 준다
+  const wake=()=>{if(ac&&ac.state==='suspended')ac.resume().catch(()=>{})};
+  document.addEventListener('pointerdown',wake,{passive:true});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)wake()});
+  // 설정의 '소리 테스트': 띵동 세 음을 직접 들려준다
+  function test(){
+    if(!ensureCtx())return '이 브라우저는 소리를 지원하지 않아';
+    prime();
+    try{
+      const t=ac.currentTime+.05;
+      [[660,0],[880,.22],[1320,.44]].forEach(([f,d])=>{const o=ac.createOscillator(),g=ac.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(0,t+d);g.gain.linearRampToValueAtTime(.3,t+d+.01);g.gain.exponentialRampToValueAtTime(.0001,t+d+.9);o.connect(g);g.connect(ac.destination);o.start(t+d);o.stop(t+d+1)});
+    }catch(e){return '소리 테스트 실패: '+e.message}
+    return ac.state==='running'?'띵동 소리가 났어? 안 들리면 폰 무음 스위치와 미디어 볼륨을 확인해줘':'브라우저가 소리를 막고 있어. 화면을 한 번 터치하고 다시 눌러줘';
+  }
 
   function mkPan(r,period,dir){
     const p=ac.createPanner();p.panningModel='HRTF';p.distanceModel='inverse';p.refDistance=1;p.rolloffFactor=.35;
@@ -28,7 +63,10 @@ export function createMusic(api){
   }
   function build(){
     sess=ac.createGain();sess.gain.value=0;
-    const comp=ac.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=3;sess.connect(comp);comp.connect(ac.destination);
+    const comp=ac.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=3;
+    const mk=ac.createGain();mk.gain.value=1.7;
+    const lim=ac.createDynamicsCompressor();lim.threshold.value=-4;lim.knee.value=0;lim.ratio.value=20;lim.attack.value=.003;lim.release.value=.1;
+    sess.connect(comp);comp.connect(mk);mk.connect(lim);lim.connect(ac.destination);
     dry=ac.createGain();dry.gain.value=.9;dry.connect(sess);
     const len=Math.floor(ac.sampleRate*3.8),ir=ac.createBuffer(2,len,ac.sampleRate);
     for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.6)}
@@ -56,7 +94,7 @@ export function createMusic(api){
 
   function pad(t,notes,dur){notes.forEach(m=>{[['sawtooth',-6],['triangle',6]].forEach(([ty,dt])=>{const o=ac.createOscillator();o.type=ty;o.frequency.value=mtof(m);o.detune.value=dt;const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=1000;const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.022,t+1.4);g.gain.setValueAtTime(.022,t+dur);g.gain.linearRampToValueAtTime(0,t+dur+1.8);o.connect(f);f.connect(g);out(g,.4,.1,pans.pad);o.start(t);o.stop(t+dur+2)})})}
   function strings(t,notes,dur,fac){notes.forEach(m=>{[-9,0,9].forEach(dt=>{const o=ac.createOscillator();o.type='sawtooth';o.frequency.value=mtof(m+12);o.detune.value=dt;const lfo=ac.createOscillator();lfo.frequency.value=5+Math.random();const lg=ac.createGain();lg.gain.value=5;lfo.connect(lg);lg.connect(o.detune);lfo.start(t);lfo.stop(t+dur+2);const f=ac.createBiquadFilter();f.type='lowpass';f.frequency.value=2200;const g=ac.createGain();const p=.011*fac;g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(p,t+1.7);g.gain.setValueAtTime(p,t+dur);g.gain.linearRampToValueAtTime(0,t+dur+1.6);o.connect(f);f.connect(g);out(g,.5,.05,pans.str);o.start(t);o.stop(t+dur+2)})})}
-  function arp(t,m,vel){const f=mtof(m),c=ac.createOscillator(),md=ac.createOscillator();c.type='sine';md.type='sine';c.frequency.value=f;md.frequency.value=f*3.01;const mg=ac.createGain();mg.gain.setValueAtTime(f*1.4,t);mg.gain.exponentialRampToValueAtTime(1,t+.5);md.connect(mg);mg.connect(c.frequency);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.05*vel,t+.006);g.gain.exponentialRampToValueAtTime(.0001,t+1.1);c.connect(g);out(g,.5,.5,pans.arp);c.start(t);md.start(t);c.stop(t+1.2);md.stop(t+1.2)}
+  function arp(t,m,vel){const f=mtof(m),c=ac.createOscillator(),md=ac.createOscillator();c.type='sine';md.type='sine';c.frequency.value=f;md.frequency.value=f*3.01;const mg=ac.createGain();mg.gain.setValueAtTime(f*1.4,t);mg.gain.exponentialRampToValueAtTime(1,t+.5);md.connect(mg);mg.connect(c.frequency);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.075*vel,t+.006);g.gain.exponentialRampToValueAtTime(.0001,t+1.1);c.connect(g);out(g,.5,.5,pans.arp);c.start(t);md.start(t);c.stop(t+1.2);md.stop(t+1.2)}
   function bass(t,m,dur){const o=ac.createOscillator();o.type='sine';o.frequency.value=mtof(m);const g=ac.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.11,t+.4);g.gain.setValueAtTime(.11,t+dur);g.gain.linearRampToValueAtTime(0,t+dur+1);o.connect(g);out(g,.1,0);o.start(t);o.stop(t+dur+1.1)}
   function pulse(t){const o=ac.createOscillator();o.type='sine';o.frequency.setValueAtTime(90,t);o.frequency.exponentialRampToValueAtTime(42,t+.2);const g=ac.createGain();g.gain.setValueAtTime(.1,t);g.gain.exponentialRampToValueAtTime(.0001,t+.3);o.connect(g);out(g,0,0);o.start(t);o.stop(t+.35)}
   function bar(i,t0){
@@ -83,7 +121,7 @@ export function createMusic(api){
     if(!playing)return;
     playing=false;clearInterval(timer);clearInterval(rot);timer=null;rot=null;
     const s=sess;
-    try{s.gain.cancelScheduledValues(ac.currentTime);s.gain.setTargetAtTime(0,ac.currentTime,.25);setTimeout(()=>{try{s.disconnect()}catch(e){}},1600)}catch(e){}
+    try{s.gain.cancelScheduledValues(ac.currentTime);s.gain.setTargetAtTime(0,ac.currentTime,.25);setTimeout(()=>{try{s.disconnect()}catch(e){}if(!playing&&silent)silent.pause()},1600)}catch(e){}
     log('공부 소리 멈춤');
   }
   // 공부 중일 때만 재생
@@ -93,5 +131,5 @@ export function createMusic(api){
   }
   // 설정이 바뀌었을 때(볼륨 등) 바로 반영
   function apply(){if(playing&&sess)sess.gain.setTargetAtTime(vol(),ac.currentTime,.1)}
-  return{prime,sync,apply,isPlaying:()=>playing};
+  return{prime,sync,apply,test,isPlaying:()=>playing,state:()=>ac?ac.state:'none'};
 }
