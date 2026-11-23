@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>공부 플래너 beta 1.3</title>
+<title>공부 플래너 beta 1.5</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:44px}
@@ -92,7 +92,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 </head>
 <body>
 <div class="top">
-  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.3</span>
+  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.5</span>
   <span class="sp"></span>
   <button class="ic" id="undo" title="되돌리기 (Ctrl+Z)"><i class="ti ti-arrow-back-up"></i></button>
   <button class="ic" id="redo" title="다시 실행 (Ctrl+Y)"><i class="ti ti-arrow-forward-up"></i></button>
@@ -201,7 +201,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 
 <script type="module">
 import { firebaseConfig } from './firebase-config.js';
-import { initSpace, SCENES, QUOTE_SETS } from './space.js';
+import { initSpace, SCENES, QUOTE_SETS } from './space.js?v=15';
 const KEY='studyplanner.state.v1', LOGKEY='studyplanner.log.v1', VKEY='studyplanner.view.v1';
 const $=id=>document.getElementById(id);
 
@@ -632,7 +632,7 @@ async function initFirebase(){
     });
   }catch(e){setSync('동기화 오류','alert-triangle');log('파이어베이스 시작 실패 '+e.message)}
 }
-render();initFirebase();log('시작 beta 1.3');
+render();initFirebase();log('시작 beta 1.5');
 </script>
 </body>
 </html>
