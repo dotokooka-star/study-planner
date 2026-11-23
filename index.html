@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>공부 플래너 beta 1.6</title>
+<title>공부 플래너 beta 1.7</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
 :root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:44px}
@@ -93,7 +93,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 </head>
 <body>
 <div class="top">
-  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.6</span>
+  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.7</span>
   <span class="sp"></span>
   <button class="ic" id="undo" title="되돌리기 (Ctrl+Z)"><i class="ti ti-arrow-back-up"></i></button>
   <button class="ic" id="redo" title="다시 실행 (Ctrl+Y)"><i class="ti ti-arrow-forward-up"></i></button>
@@ -184,6 +184,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
   <label>소리 크기</label><input id="s_vol" type="range" min="0" max="100" step="5" style="padding:0">
   <label>8D 효과 (이어폰용)</label><select id="s_8d"><option value="0">끄기</option><option value="1">켜기</option></select>
   <label>8D 도는 속도</label><input id="s_8dspd" type="range" min="40" max="200" step="10" style="padding:0">
+  <div style="margin-top:10px"><button id="s_test"><i class="ti ti-volume"></i>소리 테스트</button></div>
   <label>동기화</label>
   <div id="s_acct" class="sm mu"></div>
   <div style="display:flex;gap:6px;margin-top:6px"><button id="s_login"><i class="ti ti-brand-google"></i>구글로 로그인</button><button id="s_logout">로그아웃</button></div>
@@ -206,7 +207,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 <script type="module">
 import { firebaseConfig } from './firebase-config.js';
 import { initSpace, SCENES, QUOTE_SETS } from './space.js?v=16';
-import { createMusic } from './music.js?v=16';
+import { createMusic } from './music.js?v=17';
 const KEY='studyplanner.state.v1', LOGKEY='studyplanner.log.v1', VKEY='studyplanner.view.v1';
 const $=id=>document.getElementById(id);
 
@@ -447,7 +448,7 @@ function tgoLabel(){
 const space=initSpace({$,getS:()=>S,tm,tmin,leftNow,swElapsed,curTask,log});
 const music=createMusic({getS:()=>S,log});
 function soundUI(){
-  $('sp_snd').lastChild.textContent=S.sound!==false?'소리 켜짐':'소리 꺼짐';
+  $('sp_snd').lastChild.textContent=S.sound===false?'소리 꺼짐':(tm.running&&tm.phase==='focus'&&music.state()!=='running'?'화면을 터치하면 소리 나요':'소리 켜짐');
   $('sp_8d').lastChild.textContent=S.sound8d?'8D 켜짐':'8D 꺼짐';
   $('sp_8d').style.display=S.sound!==false?'':'none';
 }
@@ -531,6 +532,7 @@ $('tgo').onclick=()=>{
 };
 $('time').onclick=()=>{if(tm.running)space.open(tgoLabel())};
 function setSound(patch){Object.assign(S,patch);save();music.prime();music.apply();tickTimer()}
+$('s_test').onclick=()=>toast(music.test());
 $('sp_snd').onclick=()=>setSound({sound:S.sound===false});
 $('sp_8d').onclick=()=>setSound({sound8d:!S.sound8d});
 $('tset').onclick=()=>$('gear').click();
@@ -650,7 +652,7 @@ async function initFirebase(){
     });
   }catch(e){setSync('동기화 오류','alert-triangle');log('파이어베이스 시작 실패 '+e.message)}
 }
-render();initFirebase();log('시작 beta 1.6');
+render();initFirebase();log('시작 beta 1.7');
 </script>
 </body>
 </html>
