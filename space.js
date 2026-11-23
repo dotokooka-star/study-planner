@@ -14,7 +14,11 @@ const rnd=(a,b)=>a+Math.random()*(b-a);
    장면 만들기: create()가 {setup(W,H), frame(ctx,env)}를 돌려주면 된다.
    env = {W,H,now,dt,level(0~1 등장),prog(0~1 진행),k(화면 크기 배율)} */
 function cosmosScene(){
-  let bg=null,stars=[],shoot=null;
+  let bg=null,stars=[],meteors=[],nextM=0,nextC=0;
+  function spawn(W,H,k,comet){
+    const ang=rnd(2.4,2.7),sp=comet?rnd(.16,.26):rnd(.9,1.5)*Math.min(1.3,k);
+    meteors.push({x:rnd(W*.25,W*1.1),y:rnd(-60,H*.3),vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,len:(comet?rnd(230,330):rnd(90,170))*Math.min(1.4,k),w:comet?2.6:1.4,life:0,max:comet?14000:rnd(700,1100),comet,c:comet?'150,205,255':'220,232,255'});
+  }
   const ORB=[{a:78,b:26,rot:-.35,sp:.00032,ph:0},{a:104,b:34,rot:.5,sp:-.00024,ph:2},{a:128,b:44,rot:1.25,sp:.00018,ph:4,timer:true}];
   function buildBg(W,H){
     const dpr=Math.min(2,window.devicePixelRatio||1);
@@ -37,7 +41,7 @@ function cosmosScene(){
     g.globalAlpha=1;
   }
   function setup(W,H){
-    buildBg(W,H);shoot=null;
+    buildBg(W,H);meteors=[];nextM=performance.now()+1500;nextC=performance.now()+6000;
     stars=[...Array(Math.min(120,Math.round(W*H/9000)))].map(()=>({x:Math.random(),y:Math.random(),r:rnd(.6,1.5),p:Math.random()*6.28,s:rnd(.3,1.1),big:Math.random()<.12,h:Math.random()<.3?'#a9bbff':Math.random()<.2?'#ffdcb8':'#f2f4ff'}));
   }
   function sparkle(ctx,len,al){ctx.lineWidth=1;[[1,0],[0,1]].forEach(([ux,uy])=>{const g=ctx.createLinearGradient(-ux*len,-uy*len,ux*len,uy*len);g.addColorStop(0,'rgba(200,215,255,0)');g.addColorStop(.5,'rgba(235,242,255,'+al+')');g.addColorStop(1,'rgba(200,215,255,0)');ctx.strokeStyle=g;ctx.beginPath();ctx.moveTo(-ux*len,-uy*len);ctx.lineTo(ux*len,uy*len);ctx.stroke()})}
@@ -50,14 +54,31 @@ function cosmosScene(){
       ctx.globalAlpha=al;ctx.fillStyle=s.h;ctx.beginPath();ctx.arc(x,y,s.r,0,6.28);ctx.fill();
       if(s.big){ctx.globalAlpha=al*.35;ctx.strokeStyle=s.h;ctx.lineWidth=.6;ctx.beginPath();ctx.moveTo(x-7,y);ctx.lineTo(x+7,y);ctx.moveTo(x,y-7);ctx.lineTo(x,y+7);ctx.stroke()}});
     ctx.globalAlpha=1;
-    if(level>.7&&!shoot&&Math.random()<.0012)shoot={x:Math.random()*W*.7+W*.3,y:Math.random()*H*.25,l:0};
-    if(shoot){shoot.l+=dt*.35;const q=shoot.l;ctx.strokeStyle='rgba(210,222,255,'+Math.max(0,.6-q/160)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(shoot.x-q,shoot.y+q*.5);ctx.lineTo(shoot.x-q-46,shoot.y+q*.5+23);ctx.stroke();if(q>110)shoot=null}
+    if(level>.5){
+      if(now>nextM){spawn(W,H,k,false);nextM=now+rnd(1500,3800)}
+      if(now>nextC){spawn(W,H,k,true);nextC=now+rnd(14000,22000)}
+    }
+    ctx.globalCompositeOperation='lighter';ctx.lineCap='round';
+    for(let i=meteors.length-1;i>=0;i--){
+      const m=meteors[i];m.x+=m.vx*dt;m.y+=m.vy*dt;m.life+=dt;
+      const a=Math.min(1,m.life/250)*Math.max(0,1-m.life/m.max)*level,sp=Math.hypot(m.vx,m.vy),ux=m.vx/sp,uy=m.vy/sp,tx=m.x-ux*m.len,ty=m.y-uy*m.len;
+      if(m.comet){const wg=ctx.createLinearGradient(m.x,m.y,tx,ty);wg.addColorStop(0,'rgba(110,150,255,'+(.22*a)+')');wg.addColorStop(1,'rgba(110,150,255,0)');ctx.strokeStyle=wg;ctx.lineWidth=m.w*6;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(tx,ty);ctx.stroke()}
+      const tg=ctx.createLinearGradient(m.x,m.y,tx,ty);tg.addColorStop(0,'rgba('+m.c+','+(.95*a)+')');tg.addColorStop(1,'rgba('+m.c+',0)');
+      ctx.strokeStyle=tg;ctx.lineWidth=m.w;ctx.beginPath();ctx.moveTo(m.x,m.y);ctx.lineTo(tx,ty);ctx.stroke();
+      const hr=(m.comet?16:8)*Math.min(1.3,k),hg=ctx.createRadialGradient(m.x,m.y,0,m.x,m.y,hr);hg.addColorStop(0,'rgba(245,250,255,'+a+')');hg.addColorStop(.3,'rgba('+m.c+','+(.5*a)+')');hg.addColorStop(1,'rgba('+m.c+',0)');
+      ctx.fillStyle=hg;ctx.beginPath();ctx.arc(m.x,m.y,hr,0,6.28);ctx.fill();
+      if(m.life>m.max||m.x<-350||m.y>H+350)meteors.splice(i,1);
+    }
+    ctx.globalCompositeOperation='source-over';
     ctx.save();ctx.translate(W/2,H*.38);
     ORB.forEach(o=>{const a=o.a*k*level,b=o.b*k*level;ctx.save();ctx.rotate(o.rot);ctx.strokeStyle='rgba(150,170,240,'+(.16*level)+')';ctx.lineWidth=.8;ctx.beginPath();ctx.ellipse(0,0,a,b,0,0,6.2832);ctx.stroke();
       const t=now*o.sp*6.2832*3+o.ph;
-      for(let j=10;j>=0;j--){const tt=t-j*.045,x=Math.cos(tt)*a,y=Math.sin(tt)*b,al=(1-j/11)*.55*level;ctx.fillStyle='rgba(205,218,255,'+al+')';ctx.beginPath();ctx.arc(x,y,(j===0?2.4:1.4*(1-j/14))*Math.min(1.4,k),0,6.28);ctx.fill()}
-      if(o.timer){const tp=p*6.2832;ctx.strokeStyle='rgba(215,225,255,'+(.5*level)+')';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,0,a,b,0,0,Math.max(.01,tp));ctx.stroke();
-        const mx=Math.cos(tp)*a,my=Math.sin(tp)*b;ctx.strokeStyle='rgba(235,241,255,'+(.95*level)+')';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(mx,my,5*Math.min(1.4,k),0,6.28);ctx.stroke();ctx.fillStyle='rgba(235,241,255,'+level+')';ctx.beginPath();ctx.arc(mx,my,1.8,0,6.28);ctx.fill()}
+      if(!o.timer)for(let j=10;j>=0;j--){const tt=t-j*.045,x=Math.cos(tt)*a,y=Math.sin(tt)*b,al=(1-j/11)*.55*level;ctx.fillStyle='rgba(205,218,255,'+al+')';ctx.beginPath();ctx.arc(x,y,(j===0?2.4:1.4*(1-j/14))*Math.min(1.4,k),0,6.28);ctx.fill()}
+      if(o.timer){const tp=p*6.2832,kk=Math.min(1.4,k);ctx.strokeStyle='rgba(190,210,255,'+(.35*level)+')';ctx.lineWidth=1.1;ctx.beginPath();ctx.ellipse(0,0,a,b,0,0,Math.max(.01,tp));ctx.stroke();
+        ctx.globalCompositeOperation='lighter';
+        for(let j=28;j>=1;j--){const tt=tp-j*.034,x=Math.cos(tt)*a,y=Math.sin(tt)*b,al=(1-j/29)*.55*level;ctx.fillStyle='rgba(150,190,255,'+al+')';ctx.beginPath();ctx.arc(x,y,Math.max(.4,(3.4-j*.1)*kk),0,6.28);ctx.fill()}
+        const mx=Math.cos(tp)*a,my=Math.sin(tp)*b,hr=15*kk,g=ctx.createRadialGradient(mx,my,0,mx,my,hr);g.addColorStop(0,'rgba(245,250,255,'+level+')');g.addColorStop(.25,'rgba(170,200,255,'+(.55*level)+')');g.addColorStop(1,'rgba(120,150,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(mx,my,hr,0,6.28);ctx.fill();
+        ctx.globalCompositeOperation='source-over'}
       ctx.restore()});
     ctx.globalCompositeOperation='lighter';
     [[46,'rgba(120,140,255,.16)'],[20,'rgba(190,205,255,.35)']].forEach(([r,c])=>{const rr=Math.max(1,r*k*pulse*level);const g=ctx.createRadialGradient(0,0,0,0,0,rr);g.addColorStop(0,c);g.addColorStop(1,'rgba(0,0,0,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,rr,0,6.28);ctx.fill()});
