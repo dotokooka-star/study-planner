@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>공부 플래너 beta 1.7</title>
+<title>공부 플래너 beta 1.8</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
 <style>
-:root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:44px}
+:root{--bg:#121212;--panel:#1a1a1a;--chip:#262626;--bd:#2c2c2c;--tx:#ececec;--mu:#8e8e8e;--ac:#ececec;--onac:#121212;--hh:64px}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--tx);font:16px 'Segoe UI','Malgun Gothic',sans-serif}
 button,input,select{font:inherit;color:inherit}
@@ -40,8 +40,10 @@ i.ti{font-size:18px}
 .seg{display:flex}.seg button{border-radius:0}.seg button:first-child{border-radius:6px 0 0 6px}.seg button:last-child{border-radius:0 6px 6px 0}
 /* 월 달력 */
 .mhead{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;color:var(--mu);font-size:13px;text-align:center;margin-bottom:6px}
-.mgrid{flex:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(92px,1fr);gap:6px}
-.cell{border:1px solid var(--bd);border-radius:8px;padding:6px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-height:0}
+.mgrid{flex:1;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));grid-auto-rows:minmax(92px,auto);gap:6px}
+.cell{border:1px solid var(--bd);border-radius:8px;padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:3px}
+.cell .chipt{white-space:normal;overflow:visible;text-overflow:clip;word-break:keep-all;line-height:1.3}
+.cont>div:first-child{position:sticky;top:-16px;background:var(--bg);z-index:3;padding:8px 0}
 .cell:hover{border-color:var(--mu)}.cell.out{opacity:.4}.cell.today{border:1.5px solid var(--ac)}.cell.over{background:var(--chip)}
 .cell .dn{font-size:14px;margin-bottom:2px;width:max-content;padding:0 4px;border-radius:4px}
 .cell.today .dn{font-weight:600;background:var(--ac);color:var(--onac)}
@@ -63,7 +65,8 @@ i.ti{font-size:18px}
 .tlbody{display:grid;grid-template-columns:48px repeat(7,minmax(0,1fr))}
 .tlhrs div{height:var(--hh);font-size:12px;color:var(--mu);text-align:right;padding-right:6px;transform:translateY(-8px)}
 .tlcol{position:relative;border-left:1px solid var(--bd);height:calc(var(--hh)*24);background:repeating-linear-gradient(to bottom,transparent 0,transparent calc(var(--hh) - 1px),var(--bd) calc(var(--hh) - 1px),var(--bd) var(--hh));cursor:pointer}
-.ev{position:absolute;background:var(--chip);border:1px solid var(--mu);border-left:3px solid var(--ac);border-radius:4px;padding:2px 5px;font-size:13px;overflow:hidden;cursor:grab;line-height:1.25}
+.ev{position:absolute;background:var(--chip);border:1px solid var(--mu);border-left:3px solid var(--ac);border-radius:4px;padding:3px 6px;font-size:13px;overflow:visible;cursor:grab;line-height:1.3;word-break:keep-all;z-index:1}
+.ev:hover{z-index:5}
 .ev.done{color:var(--mu);text-decoration:line-through}
 .ev .tm{color:var(--mu);font-size:12px;display:block}
 textarea{width:100%;background:var(--chip);border:1px solid var(--bd);border-radius:6px;padding:8px;color:var(--tx);font:13px/1.5 'Segoe UI','Malgun Gothic',sans-serif;resize:vertical}
@@ -93,7 +96,7 @@ dialog label{display:block;font-size:13px;color:var(--mu);margin:10px 0 3px}
 </head>
 <body>
 <div class="top">
-  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.7</span>
+  <i class="ti ti-notebook" style="font-size:22px"></i><b>공부 플래너</b><span class="mu sm">beta 1.8</span>
   <span class="sp"></span>
   <button class="ic" id="undo" title="되돌리기 (Ctrl+Z)"><i class="ti ti-arrow-back-up"></i></button>
   <button class="ic" id="redo" title="다시 실행 (Ctrl+Y)"><i class="ti ti-arrow-forward-up"></i></button>
@@ -233,10 +236,10 @@ function redo(){if(!redoS.length)return;undoS.push(JSON.stringify(S));S=JSON.par
 function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2200)}
 
 /* ---------- 보기 상태 ---------- */
-let view='month',monOff=0,weekOff=0,tlScroll=8*44;
+let view='month',monOff=0,weekOff=0,tlScroll=8*64,tlUser=false;
 try{const v=localStorage.getItem(VKEY);if(v==='week'||v==='month')view=v}catch(e){}
 const DOW=['일','월','화','수','목','금','토'];
-const HH=44;
+const HH=64;
 const mondayOf=d=>{const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-(x.getDay()+6)%7);return x};
 const addDays=(d,n)=>{const x=new Date(d);x.setDate(x.getDate()+n);return x};
 function weekStart(){return addDays(mondayOf(new Date()),weekOff*7)}
@@ -249,7 +252,7 @@ function goWeekOf(k){view='week';weekOff=Math.round((mondayOf(pd(k))-mondayOf(ne
 function taskEl(t){
   const e=document.createElement('div');e.className='task'+(t.done?' done':'');
   e.innerHTML='<span class="cb"><i class="ti ti-check"></i></span><span class="t"></span><span class="mu sm"></span><button class="ic pl" title="이 할 일로 타이머 시작"><i class="ti ti-player-play"></i></button>';
-  e.querySelector('.t').textContent=(t.subject?'['+t.subject+'] ':'')+t.title;
+  e.querySelector('.t').textContent=(t.subject&&!t.title.startsWith(t.subject)?'['+t.subject+'] ':'')+t.title;
   e.children[2].textContent=t.time?t.time:(t.min?fmtMin(t.min):'');
   e.children[0].onclick=ev=>{ev.stopPropagation();commit(()=>{t.done=!t.done})};
   e.children[3].onclick=ev=>{ev.stopPropagation();startForTask(t)};
@@ -258,10 +261,11 @@ function taskEl(t){
   e.onclick=()=>openTask(t);
   return e;
 }
+const subLbl=t=>t.subject&&!t.title.startsWith(t.subject)?t.subject+' ':'';
 function chipEl(t,cls){
   const e=document.createElement('div');e.className=cls+(t.done?' done':'');e.draggable=true;
-  e.title=(t.time?t.time+' ':'')+(t.subject?'['+t.subject+'] ':'')+t.title;
-  if(cls==='chipt'){e.innerHTML='<span class="tm"></span><span></span>';e.children[0].textContent=t.time||'';e.children[1].textContent=(t.subject?t.subject+' ':'')+t.title;if(!t.time)e.children[0].remove()}
+  e.title=(t.time?t.time+' ':'')+subLbl(t)+t.title;
+  if(cls==='chipt'){e.innerHTML='<span class="tm"></span><span></span>';e.children[0].textContent=t.time||'';e.children[1].textContent=subLbl(t)+t.title;if(!t.time)e.children[0].remove()}
   e.ondragstart=ev=>{ev.dataTransfer.setData('text/plain',t.id)};
   e.onclick=ev=>{ev.stopPropagation();openTask(t)};
   return e;
@@ -321,14 +325,13 @@ function renderMonth(){
   const n=Math.round((end-first)/864e5)+1;
   const cal=$('cal');cal.innerHTML='';
   const hd=document.createElement('div');hd.className='mhead';hd.innerHTML='<span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span>';cal.appendChild(hd);
-  const g=document.createElement('div');g.className='mgrid';g.style.gridTemplateRows='repeat('+(n/7)+',minmax(92px,1fr))';cal.appendChild(g);
+  const g=document.createElement('div');g.className='mgrid';g.style.gridTemplateRows='repeat('+(n/7)+',minmax(92px,auto))';cal.appendChild(g);
   for(let i=0;i<n;i++){
     const d=addDays(first,i),k=ds(d);
     const c=document.createElement('div');c.className='cell'+(d.getMonth()!==base.getMonth()?' out':'')+(k===td?' today':'');
     const dn=document.createElement('div');dn.className='dn';dn.textContent=d.getDate();dn.title='이 주를 시간대별로 보기';dn.onclick=ev=>{ev.stopPropagation();goWeekOf(k)};c.appendChild(dn);
     const list=S.tasks.filter(t=>t.date===k).sort(byTime);
-    list.slice(0,3).forEach(t=>c.appendChild(chipEl(t,'chipt')));
-    if(list.length>3){const m=document.createElement('div');m.className='more';m.textContent='+'+(list.length-3)+'개 더';m.onclick=ev=>{ev.stopPropagation();goWeekOf(k)};c.appendChild(m)}
+    list.forEach(t=>c.appendChild(chipEl(t,'chipt')));
     c.onclick=()=>openTask(null,k);
     dropOn(c,id=>moveTask(id,k));
     g.appendChild(c);
@@ -375,8 +378,8 @@ function renderWeek(){
     const k=ds(d),col=document.createElement('div');col.className='tlcol';
     lanes(S.tasks.filter(t=>t.date===k&&t.time)).forEach(it=>{
       const e=chipEl(it.t,'ev');
-      e.innerHTML='<span class="tm"></span><span></span>';e.children[0].textContent=it.t.time+(it.t.min?' · '+it.t.min+'분':'');e.children[1].textContent=(it.t.subject?it.t.subject+' ':'')+it.t.title;
-      e.style.top=(it.s/60*HH)+'px';e.style.height=Math.max(24,(it.e-it.s)/60*HH-2)+'px';
+      e.innerHTML='<span class="tm"></span><span></span>';e.children[0].textContent=it.t.time+(it.t.min?' · '+it.t.min+'분':'');e.children[1].textContent=subLbl(it.t)+it.t.title;
+      e.style.top=(it.s/60*HH)+'px';e.style.minHeight=Math.max(40,(it.e-it.s)/60*HH-2)+'px';
       e.style.left=(it.lane/it.n*100)+'%';e.style.width='calc('+(100/it.n)+'% - 3px)';
       col.appendChild(e);
     });
@@ -384,7 +387,8 @@ function renderWeek(){
     dropOn(col,(id,ev)=>moveTask(id,k,slot(ev,col)));
     body.appendChild(col);
   });
-  sc.scrollTop=tlScroll;requestAnimationFrame(()=>{sc.scrollTop=tlScroll;sc.onscroll=()=>{tlScroll=sc.scrollTop}});
+  if(!tlUser){const wk=days.map(ds),ms=S.tasks.filter(t=>t.time&&wk.includes(t.date)).map(t=>toMin(t.time));if(ms.length)tlScroll=Math.max(0,Math.min(...ms)/60-.75)*HH}
+  sc.scrollTop=tlScroll;requestAnimationFrame(()=>{sc.scrollTop=tlScroll;sc.onscroll=()=>{tlScroll=sc.scrollTop;tlUser=true}});
 }
 function streak(){
   const days=new Set([...S.sessions.map(s=>s.date),...S.tasks.filter(t=>t.done).map(t=>t.date)]);
@@ -652,7 +656,7 @@ async function initFirebase(){
     });
   }catch(e){setSync('동기화 오류','alert-triangle');log('파이어베이스 시작 실패 '+e.message)}
 }
-render();initFirebase();log('시작 beta 1.7');
+render();initFirebase();log('시작 beta 1.8');
 </script>
 </body>
 </html>
